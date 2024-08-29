@@ -1,68 +1,129 @@
-import React from "react";
-import { getAuthToken } from "@/services/get-token";
-//getting the token
+"use client";
 
-const AddProducts = async () => {
+import React, { useState, useEffect } from "react";
+import { API_URL } from "@/config/index";
+
+const AddProducts = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState([]); // Initialize as an empty array
   const [price, setPrice] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const authToken = await getAuthToken();
-  if (!authToken) {
-    setError("Token is not present");
-  }
-  const handleSubmit = async (e) => {
-    const addedProduct = { tite, description, category, price };
-    const requestOptions = {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify(addedProduct),
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/categories`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch categories");
+        }
+        const data = await response.json();
+        if (Array.isArray(data.data)) {
+          setCategories(data.data); // Set categories only if data.data is an array
+        } else {
+          throw new Error("Categories data is not an array");
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        setError("Could not load categories");
+      }
     };
 
-    const response = await fetch(`${API_URL}/api/products`, requestOptions);
-    const evt = await response.json();
+    fetchCategories();
+  }, []);
 
-    if (!response.ok) {
-      if (res.status === 403 || res.status === 401) {
-        setError("UnAuthorized");
-        return;
-      } else {
-        setError("Something Went Wrong");
-      }
-      setMessage("A new product has been submitted successfully !", {});
-      router.push(`/products`);
-    }
+  // Log categories after they are updated
+  useEffect(() => {
+    console.log(categories);
+  }, [categories]);
+
+  // Handle file selection
+  const handleFileChange = (event) => {
+    setSelectedFiles(event.target.files);
   };
+
+  // Handle form submission
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (selectedFiles.length === 0) {
+      alert("Please select at least one file.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("title", title);
+    formData.append("description", description);
+    formData.append("category", category);
+    formData.append("price", price);
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      formData.append("files", selectedFiles[i]);
+    }
+// Log FormData entries
+for (let pair of formData.entries()) {
+  console.log(`${pair[0]}: ${pair[1]}`);
+}
+    setIsUploading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/upload`, {
+        method: "POST",
+        body: formData,
+      });
+    
+      const result = await response.json();
+      console.log("Response object:", response); // Check the full response
+      console.log("Result:", result); // Check the parsed JSON result
+    
+      if (!response.ok) {
+        throw new Error(result.message || "Failed to upload images"); // Use server-provided error message if available
+      }
+    
+      console.log("Upload successful:", result);
+      setMessage("Product and images uploaded successfully!");
+      setError("");
+    } catch (error) {
+      console.error("Error uploading images:", error);
+      setError("There was an error uploading the images.");
+      setMessage("");
+    } finally {
+      setIsUploading(false);
+    }
+    
+  };
+
   return (
     <div
       className="container bg-light col-md-6"
       style={{ marginTop: "10%", padding: "35px" }}
     >
-      <h3 className="text-center text-primary">Ad Products</h3>
+      <h3 className="text-center text-primary">Add Products</h3>
       <div className="text-danger">{error}</div>
-      <div className="text-success">{error}</div>
+      <div className="text-success">{message}</div>
+
       <form onSubmit={handleSubmit}>
-        <div>{error}</div>
         <div>
-          <label htmlFor="name">Product Title</label>
           <input
             type="text"
+            className="form-control mb-2"
             name="title"
+            placeholder="Title"
             id="name"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
         </div>
         <div>
-          <label htmlFor="performers">Product Description</label>
+          <label htmlFor="description">Product Description</label>
           <textarea
             type="text"
+            className="form-control mb-2"
             name="description"
             id="description"
             value={description}
@@ -70,28 +131,49 @@ const AddProducts = async () => {
           />
         </div>
         <div>
+          <label htmlFor="category">Category</label>
           <select
-            id="titleSelect"
+            id="category"
+            className="form-control mb-2"
             value={category}
-            onChange={(e) => setCategory(e.target.value)} // Inline onChange handler
+            onChange={(e) => setCategory(e.target.value)}
           >
             <option value="">--Please choose a category--</option>
-            <option value="Mr">SUV</option>
-            <option value="Mrs">Sedan.</option>
-            <option value="Ms">Hatchback.</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.title}>
+                {cat.title}
+              </option>
+            ))}
           </select>
         </div>
         <div>
-          <label htmlFor="name">Price</label>
           <input
             type="text"
+            className="form-control mb-2"
             name="price"
-            id="name"
+            placeholder="Price"
+            id="price"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
           />
         </div>
-        <input type="submit" value="Add Event" className="btn" />
+        <div>
+          <label htmlFor="images">Upload Images</label>
+          <input
+            type="file"
+            className="form-control mb-2"
+            name="images"
+            accept="image/*"
+            multiple
+            onChange={handleFileChange}
+          />
+        </div>
+        <input
+          type="submit"
+          value={isUploading ? "Uploading..." : "Add Product"}
+          className="btn btn-primary"
+          disabled={isUploading}
+        />
       </form>
     </div>
   );
