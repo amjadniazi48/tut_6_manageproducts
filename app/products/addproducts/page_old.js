@@ -2,19 +2,18 @@
 
 import React, { useState, useEffect } from "react";
 import { API_URL } from "@/config/index";
-import { useRouter } from 'next/navigation';
+
 const AddProducts = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState([]); // Initialize as an empty array
   const [price, setPrice] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [previewImages, setPreviewImages] = useState([]); // New state for image previews
-  const router = useRouter();
+  
   // Fetch categories from API
   useEffect(() => {
     const fetchCategories = async () => {
@@ -25,7 +24,7 @@ const AddProducts = () => {
         }
         const data = await response.json();
         if (Array.isArray(data.data)) {
-          setCategories(data.data);
+          setCategories(data.data); // Set categories only if data.data is an array
         } else {
           throw new Error("Categories data is not an array");
         }
@@ -38,32 +37,36 @@ const AddProducts = () => {
     fetchCategories();
   }, []);
 
-  // Handle file selection and generate previews
+  // Log categories after they are updated
+  useEffect(() => {
+    console.log(categories);
+  }, [categories]);
+
+  // Handle file selection
   const handleFileChange = (event) => {
-    const files = Array.from(event.target.files);
-    setSelectedFiles(files);
-    const previews = files.map((file) => URL.createObjectURL(file));
-    setPreviewImages(previews);
+    setSelectedFiles(event.target.files);
   };
 
   // Handle form submission
   const handleSubmit = async (event) => {
     event.preventDefault();
-
+  
     if (selectedFiles.length === 0) {
       alert("Please select at least one file.");
       return;
     }
-
+  
     setIsUploading(true);
-
+  
     try {
+      // Find the selected category object by its title
       const selectedCategory = categories.find((cat) => cat.title === category);
-
+  
       if (!selectedCategory) {
         throw new Error("Invalid category selected.");
       }
-
+  
+      // Step 1: Create the product
       const productResponse = await fetch(`${API_URL}/api/products`, {
         method: "POST",
         headers: {
@@ -73,48 +76,52 @@ const AddProducts = () => {
           data: {
             title,
             description,
-            categories: [selectedCategory.id],
+            categories: [selectedCategory.id], // Send categories as an array of IDs
             price,
           },
         }),
       });
-
+  
       if (!productResponse.ok) {
         const errorData = await productResponse.json();
         throw new Error(errorData.error.message || "Failed to create product");
       }
-
+  
       const productData = await productResponse.json();
-      const productId = productData.data.id;
+      console.log("this is the created product data",productData)
 
+      const productId = productData.data.id; // Extract the ID of the created product
+        //getting the draft version id
+    
+      console.log("newly created productid", productId);
+  
       if (!productId) {
         throw new Error("Product ID not found in response");
       }
-
-      // Upload the images
+  
+      // Step 2: Upload the images with ref, refId, and field
       const formData = new FormData();
-      selectedFiles.forEach((file) => {
-        formData.append("files", file);
-      });
-      formData.append("ref", "api::product.product");
-      formData.append("refId", productId);
-      formData.append("field", "images");
-
+      for (let i = 0; i < selectedFiles.length; i++) {
+        formData.append("files", selectedFiles[i]);
+      }
+      formData.append("ref", "api::product.product"); // Adjust this if necessary
+      formData.append("refId", productId); // Ensure productId is correct
+      formData.append("field", "images"); // Ensure this matches the field in Strapi
+  
       const uploadResponse = await fetch(`${API_URL}/api/upload`, {
         method: "POST",
         body: formData,
       });
-
+  
       if (!uploadResponse.ok) {
         const uploadError = await uploadResponse.json();
         throw new Error(uploadError.error.message || "Failed to upload images");
       }
-
+  
       const uploadData = await uploadResponse.json();
       console.log("Upload response data:", uploadData);
-        
+  
       setMessage("Product and images uploaded successfully!");
-      router.push(`editproduct/${productId}`);
       setError("");
     } catch (error) {
       console.error("Error:", error);
@@ -124,7 +131,7 @@ const AddProducts = () => {
       setIsUploading(false);
     }
   };
-
+  
   return (
     <div
       className="container bg-light col-md-6"
@@ -196,22 +203,10 @@ const AddProducts = () => {
             onChange={handleFileChange}
           />
         </div>
-        <div>
-          <div className="image-preview-container">
-            {previewImages.map((preview, index) => (
-              <img
-                key={index}
-                src={preview}
-                alt={`Preview ${index}`}
-                style={{ width: "100px", marginRight: "10px" }}
-              />
-            ))}
-          </div>
-        </div>
         <input
           type="submit"
           value={isUploading ? "Uploading..." : "Add Product"}
-          className="btn btn-primary mt-3"
+          className="btn btn-primary"
           disabled={isUploading}
         />
       </form>
